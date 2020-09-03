@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -291,4 +292,55 @@ func rejectResticCache(repo *repository.Repository) (RejectByNameFunc, error) {
 
 		return false
 	}, nil
+}
+
+func rejectBySize(maxSizeStr string) (RejectFunc, error) {
+	maxSize, err := parseSizeStr(maxSizeStr)
+	if err != nil {
+		return nil, err
+	}
+
+	return func(item string, fi os.FileInfo) bool {
+		// directory will be ignored
+		if fi.IsDir() {
+			return false
+		}
+
+		filesize := fi.Size()
+		if filesize > maxSize {
+			debug.Log("file %s is oversize: %d", item, filesize)
+			return true
+		}
+
+		return false
+	}, nil
+}
+
+func parseSizeStr(sizeStr string) (int64, error) {
+	switch sizeStr[len(sizeStr)-1] {
+	case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+		return strconv.ParseInt(sizeStr, 10, 64)
+	case 'b', 'B':
+		return strconv.ParseInt(sizeStr[:len(sizeStr)-1], 10, 64)
+	case 'k', 'K':
+		value, err := strconv.ParseInt(sizeStr[:len(sizeStr)-1], 10, 64)
+		if err != nil {
+			return 0, nil
+		}
+		return value * 1024, nil
+	case 'm', 'M':
+		value, err := strconv.ParseInt(sizeStr[:len(sizeStr)-1], 10, 64)
+		if err != nil {
+			return 0, nil
+		}
+		return value * 1048576, nil
+	case 'g', 'G':
+		value, err := strconv.ParseInt(sizeStr[:len(sizeStr)-1], 10, 64)
+		if err != nil {
+			return 0, nil
+		}
+		return value * 1073741824, nil
+	default:
+		return 0, fmt.Errorf("cannot parse %s to size", sizeStr)
+	}
 }

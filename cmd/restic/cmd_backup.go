@@ -95,6 +95,7 @@ type BackupOptions struct {
 	TimeStamp               string
 	WithAtime               bool
 	IgnoreInode             bool
+	MaxFileSize             string
 }
 
 var backupOptions BackupOptions
@@ -118,6 +119,7 @@ func init() {
 	f.BoolVar(&backupOptions.Stdin, "stdin", false, "read backup from stdin")
 	f.StringVar(&backupOptions.StdinFilename, "stdin-filename", "stdin", "`filename` to use when reading from stdin")
 	f.StringArrayVar(&backupOptions.Tags, "tag", nil, "add a `tag` for the new snapshot (can be specified multiple times)")
+	f.StringVar(&backupOptions.MaxFileSize, "max-file-size", "", "max size of the files to be backed up")
 
 	f.StringVarP(&backupOptions.Host, "host", "H", "", "set the `hostname` for the snapshot manually. To prevent an expensive rescan use the \"parent\" flag")
 	f.StringVar(&backupOptions.Host, "hostname", "", "set the `hostname` for the snapshot manually")
@@ -279,6 +281,14 @@ func collectRejectFuncs(opts BackupOptions, repo *repository.Repository, targets
 	// allowed devices
 	if opts.ExcludeOtherFS && !opts.Stdin {
 		f, err := rejectByDevice(targets)
+		if err != nil {
+			return nil, err
+		}
+		fs = append(fs, f)
+	}
+
+	if len(opts.MaxFileSize) != 0 && !opts.Stdin {
+		f, err := rejectBySize(opts.MaxFileSize)
 		if err != nil {
 			return nil, err
 		}
